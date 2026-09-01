@@ -1,0 +1,16 @@
+[Unit]
+Description=CMMI ITIL Assessment Frontend v4 (Next.js, port 5558)
+After=network.target cmmi-v4-backend.service
+Requires=cmmi-v4-backend.service
+
+[Service]
+Type=simple
+User=nortski101
+WorkingDirectory=/home/nortski101/.openclaw/workspace/cmmi-app-v4/frontend
+Environment=NEXT_PUBLIC_API_URL=http://localhost:8003
+ExecStart=/home/nortski101/.openclaw/workspace/cmmi-app-v4/frontend/node_modules/.bin/next start -p 5558
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

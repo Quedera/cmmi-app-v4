@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+.pnpm-store/
+
+# Build outputs
+.next/
+out/
+build/
+dist/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# Environment
+.env
+.env.local
+.env*.local
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# OpenClaw workspace noise
+.openclaw/
+.learnings/
+.clawhub/
+memory/dreaming/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# SQLite (regeneratable from migrations + seed)
+*.sqlite
+*.sqlite-journal
+*.sqlite-*
+
+# Backups & pre-state snapshots
+*.pre-*
+*.bak
+
+# Project-specific
+cmmi_v4.sqlite
+cmmi_v4.sqlite.*

@@ -1,0 +1,75 @@
+@import "../../../../branding/quedera-tokens.css";
+
+/* ---------------------------------------------------------------
+ * QUEDERA PULSE — globals
+ *
+ * Brand palette: see branding/quedera-palette.json
+ * Single source of truth for design tokens: branding/quedera-tokens.css
+ * Tailwind preset (consumed by tailwind.config.js):
+ *               branding/quedera-tailwind-preset.cjs
+ *
+ * RULE: palette codes only. No off-palette colours anywhere in
+ * QUEDERA work. — MacWood, 2026-08-26 21:10 BST, #branding.
+ *
+ * PULSE product colour: quedera-cyan #06B6D4
+ * --------------------------------------------------------------- */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  body {
+    @apply bg-quedera-surface text-quedera-navy;
+  }
+  h1, h2, h3, h4 {
+    @apply tracking-tight;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-quedera-cyan px-5 py-2.5 text-quedera-navy hover:bg-quedera-cyan/90;
+  }
+  .btn-secondary {
+    @apply btn bg-quedera-navy px-5 py-2.5 text-quedera-surface hover:bg-quedera-navy/90;
+  }
+  .btn-outline {
+    @apply btn border border-quedera-navy/30 px-5 py-2.5 text-quedera-navy hover:bg-quedera-surface;
+  }
+  .input {
+    @apply block w-full rounded-md border border-quedera-navy/30 px-3 py-2 text-sm text-quedera-navy placeholder-quedera-navy/60 focus:border-quedera-cyan focus:outline-none focus:ring-1 focus:ring-quedera-cyan;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wider text-quedera-navy/60;
+  }
+  .card {
+    @apply rounded-lg border border-quedera-navy/10 bg-quedera-surface p-6 shadow-sm;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  /* Brand chrome — used across header / hero / footer */
+  .bg-header {
+    @apply border-b border-quedera-navy/10 bg-quedera-surface;
+  }
+  .bg-card-elev {
+    @apply rounded-xl border border-quedera-navy/10 bg-quedera-surface p-5 shadow-sm;
+  }
+  .bg-progress {
+    @apply bg-quedera-cyan;
+  }
+  .text-pulse {
+    background: linear-gradient(135deg, rgb(var(--quedera-navy)) 0%, rgb(var(--quedera-cyan)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}

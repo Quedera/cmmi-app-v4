@@ -1,0 +1,31 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "brand": "QUEDERA",
+  "version": "1.0",
+  "lastUpdated": "2026-08-26",
+  "source": "#branding, image: quedera-color-palette.png",
+  "rule": "Use palette codes only. No off-palette colours anywhere QUEDERA work ships. — MacWood, 2026-08-26 21:10 BST",
+  "tokens": {
+    "quedera-navy":      { "hex": "#0D182A", "role": "QUEDERA master wordmark" },
+    "quedera-deep-blue": { "hex": "#1E3A8A", "role": "ATLAS product brand" },
+    "quedera-cyan":      { "hex": "#06B6D4", "role": "PULSE product brand" },
+    "quedera-violet":    { "hex": "#7C3AED", "role": "DUET product brand" },
+    "quedera-amber":     { "hex": "#F59E0B", "role": "BEACON product brand" },
+    "quedera-emerald":   { "hex": "#10B981", "role": "SENTINEL product brand" },
+    "quedera-surface":   { "hex": "#F2F4F7", "role": "Universal surface / background" }
+  },
+  "products": {
+    "QUEDERA":   { "token": "quedera-navy",      "hex": "#0D182A" },
+    "ATLAS":     { "token": "quedera-deep-blue", "hex": "#1E3A8A" },
+    "PULSE":     { "token": "quedera-cyan",      "hex": "#06B6D4" },
+    "DUET":      { "token": "quedera-violet",    "hex": "#7C3AED" },
+    "BEACON":    { "token": "quedera-amber",     "hex": "#F59E0B" },
+    "SENTINEL":  { "token": "quedera-emerald",   "hex": "#10B981" },
+    "SURFACE":   { "token": "quedera-surface",   "hex": "#F2F4F7" }
+  },
+  "notes": [
+    "Five of seven colours are Tailwind defaults (blue-900, cyan-500, violet-600, amber-500, emerald-500).",
+    "Two neutrals (#0D182A, #F2F4F7) need to be added as custom tokens in Tailwind — quoted as 'quedera-navy' and 'quedera-surface' unless re-branded.",
+    "When scaffolding product UIs: pick the one product token for product surfaces, quedera-navy for primary text, quedera-surface for page background. Do not invent intermediate shades."
+  ]
+}

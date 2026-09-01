@@ -1,0 +1,25 @@
+/* QUEDERA Brand Design Tokens
+ * --------------------------------------------------------------
+ * Single source of truth for QUEDERA product suite colours.
+ * Companion to branding/quedera-palette.json and
+ * branding/quedera-tailwind-preset.cjs.
+ *
+ * RULE: palette codes only. No off-palette colours anywhere in
+ * QUEDERA work. If a UI needs a shade that isn't here, pick the
+ * closest palette token and use an opacity modifier — do NOT
+ * introduce a new colour.
+ *
+ * Tokens use space-separated RGB channels so Tailwind's
+ * `rgb(var(--token) / <alpha-value>)` pattern can compose
+ * opacity modifiers (e.g. `bg-quedera-emerald/10`).
+ * -------------------------------------------------------------- */
+
+:root {
+  --quedera-navy: 13 24 42;
+  --quedera-deep-blue: 30 58 138;
+  --quedera-cyan: 6 182 212;
+  --quedera-violet: 124 58 237;
+  --quedera-amber: 245 158 11;
+  --quedera-emerald: 16 185 129;
+  --quedera-surface: 242 244 247;
+}

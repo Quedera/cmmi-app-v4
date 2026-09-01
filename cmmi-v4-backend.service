@@ -1,0 +1,16 @@
+[Unit]
+Description=CMMI ITIL Assessment Backend v4 (FastAPI, source: FINAL_v5 XLS)
+After=network.target
+
+[Service]
+Type=simple
+User=nortski101
+WorkingDirectory=/home/nortski101/.openclaw/workspace/cmmi-app-v4
+Environment=PYTHONPATH=/home/nortski101/.openclaw/workspace/cmmi-app-v4
+Environment=CMMI_DB_PATH=/home/nortski101/.openclaw/workspace/cmmi-app-v4/cmmi_v4.sqlite
+ExecStart=/home/nortski101/.openclaw/workspace/cmmi-app-v4/backend/.venv/bin/python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8003
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
