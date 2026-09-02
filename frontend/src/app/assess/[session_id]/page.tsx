@@ -67,14 +67,23 @@ export default function Assess() {
     setSavedAnswers(updated);
     saveAnswer(sessionId, currentQ.id, score);
     setTimeout(() => {
-      if (currentIdx < questions.length - 1) setCurrentIdx(currentIdx + 1);
+      if (currentIdx < questions.length - 1) {
+        setCurrentIdx(currentIdx + 1);
+      } else {
+        // Last question — auto-submit with the just-updated answers. The answer
+        // click IS the submit, so no extra "I'm Done" / "View My Results" tap
+        // is needed (see Pulse UX cleanup).
+        submitWithAnswers(updated);
+      }
     }, 300);
   }, [currentQ, currentIdx, questions.length, savedAnswers, sessionId]);
 
-  const handleSubmit = async () => {
+  // Refactored to take the answers map explicitly — lets handleSelect pass the
+  // post-click snapshot (savedAnswers in its closure is the pre-click value).
+  const submitWithAnswers = async (answersMap: Record<string, number>) => {
     if (!sessionId) return;
     setSubmitting(true);
-    const answers = Object.entries(savedAnswers).map(([qid, score]) => ({
+    const answers = Object.entries(answersMap).map(([qid, score]) => ({
       question_id: Number(qid),
       score,
     }));
@@ -116,8 +125,10 @@ export default function Assess() {
     );
   }
 
-  // Show done screen only when all questions answered
-  if (done || (mounted && questions.length > 0 && answeredCount === questions.length && answeredCount > 0)) {
+  // Loading screen — replaces the old "All Done + View My Results" flow.
+  // Auto-submit on the last answer click handles the redirect; this screen is
+  // purely the "Calculating…" interstitial while we wait for the API.
+  if (submitting || done || (mounted && questions.length > 0 && answeredCount === questions.length && answeredCount > 0)) {
     return (
       <div className="min-h-screen bg-quedera-surface flex items-center justify-center p-4">
         <div className="rounded-xl border border-quedera-navy/10 bg-quedera-surface p-8 max-w-md w-full text-center shadow-sm">
@@ -126,16 +137,13 @@ export default function Assess() {
             <span className="text-pulse">All Done!</span>
           </h2>
           <p className="text-quedera-navy/70 mb-8">
-            You&apos;ve answered {answeredCount} of {questions.length} questions.
-            Ready to see your results?
+            You&apos;ve answered all {questions.length} questions. Calculating your results…
           </p>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="w-full btn-primary py-4 rounded-lg font-semibold text-lg disabled:opacity-50"
-          >
-            {submitting ? "Calculating..." : "View My Results →"}
-          </button>
+          <div className="flex items-center justify-center gap-2 text-quedera-cyan" aria-label="Loading">
+            <div className="w-2 h-2 rounded-full bg-quedera-cyan animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-quedera-cyan animate-pulse" style={{ animationDelay: "150ms" }} />
+            <div className="w-2 h-2 rounded-full bg-quedera-cyan animate-pulse" style={{ animationDelay: "300ms" }} />
+          </div>
         </div>
       </div>
     );
@@ -207,7 +215,9 @@ export default function Assess() {
         </div>
       </div>
 
-      {/* Footer nav */}
+      {/* Footer nav — Previous only. Answer click auto-advances; on the last
+          question the click triggers submit, so neither a Next nor an
+          "I'm Done" button is needed (Pulse UX cleanup). */}
       <div className="px-4 py-4 bg-header border-t border-quedera-navy/10 flex gap-3">
         <button
           disabled={currentIdx === 0}
@@ -216,22 +226,6 @@ export default function Assess() {
         >
           ← Previous
         </button>
-
-        {currentIdx < questions.length - 1 ? (
-          <button
-            onClick={() => setCurrentIdx(currentIdx + 1)}
-            className="flex-1 btn-primary py-2 rounded-lg text-sm font-medium"
-          >
-            Next →
-          </button>
-        ) : (
-          <button
-            onClick={() => setDone(true)}
-            className="flex-1 bg-quedera-cyan text-quedera-navy py-2 rounded-lg text-sm font-medium hover:bg-quedera-cyan/90"
-          >
-            I&apos;m Done — Show Results
-          </button>
-        )}
       </div>
     </div>
   );
