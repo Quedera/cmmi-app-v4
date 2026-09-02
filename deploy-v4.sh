@@ -9,7 +9,8 @@
 #   ./deploy-v4.sh --with-migrations     # also run any pending migrations
 #
 # Migrations applied (in order):
-#   - 014_clean_discipline_names.py  (Pulse release)
+#   - 014_clean_discipline_names.py    (Pulse release — underscore cleanup)
+#   - 015_add_respondent_metadata.py   (Pulse release — role + company on sessions)
 #
 # Healthcheck ports:
 #   - Backend  :8003
@@ -38,6 +39,16 @@ run_migration_014() {
   python3 "${script}" "${DB_PATH}"
 }
 
+run_migration_015() {
+  local script="${MIGRATIONS_DIR}/015_add_respondent_metadata.py"
+  if [[ ! -f "${script}" ]]; then
+    echo "ERROR: migration script not found: ${script}" >&2
+    exit 1
+  fi
+  echo "==> Running 015_add_respondent_metadata.py against ${DB_PATH}"
+  python3 "${script}" "${DB_PATH}"
+}
+
 echo "==> Restarting ${BACKEND_SVC}"
 sudo systemctl restart "${BACKEND_SVC}"
 echo "==> Restarting ${FRONTEND_SVC}"
@@ -47,6 +58,7 @@ if [[ "${WITH_MIGRATIONS}" -eq 1 ]]; then
   echo "==> Stopping ${BACKEND_SVC} (DB must be unlocked)"
   sudo systemctl stop "${BACKEND_SVC}"
   run_migration_014
+  run_migration_015
   echo "==> Starting ${BACKEND_SVC}"
   sudo systemctl start "${BACKEND_SVC}"
 fi
