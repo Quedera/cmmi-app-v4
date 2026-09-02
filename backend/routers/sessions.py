@@ -20,8 +20,10 @@ Discipline IDs are 1..28 (matches `disciplines.id` in the DB).
 Build log: #cmmi channel thread 1536414485181632614
 """
 import json
+import os
 import uuid
 from io import BytesIO
+from pathlib import Path
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -29,12 +31,14 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, validator
 
 from openpyxl import Workbook
-from openpyxl.styles import Font
+from openpyxl.drawing.image import Image as XLImage
+from openpyxl.styles import Font, PatternFill
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import (
+    Image,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -45,6 +49,26 @@ from reportlab.platypus import (
 from backend.db import database as db
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
+
+# --- Pulse brand assets ----------------------------------------------------
+# Resolve the lockup path relative to this file so it works whether the
+# backend is launched from /workspace/cmmi-app-v4 (systemd, local) or from
+# inside a Docker container with a different cwd. Override via env var if the
+# layout ever changes (PULSE_LOGO_PATH=/abs/path/pulse-lockup-dual.png).
+_DEFAULT_LOGO = (
+    Path(__file__).resolve().parent.parent.parent
+    / "frontend"
+    / "public"
+    / "assets"
+    / "pulse-lockup-dual.png"
+)
+PULSE_LOGO_PATH = Path(os.environ.get("PULSE_LOGO_PATH", str(_DEFAULT_LOGO)))
+
+# QUEDERA master palette (from branding/quedera-palette.json, 2026-08-26)
+PULSE_CYAN = colors.HexColor("#06B6D4")   # PULSE product brand
+PULSE_NAVY = colors.HexColor("#0D182A")   # QUEDERA master wordmark
+PULSE_NAVY_RGB = "0D182A"
+PULSE_CYAN_RGB = "06B6D4"
 
 SessionScope = Literal["full", "single", "multi"]
 
@@ -262,8 +286,28 @@ def export_pdf(session_id: str):
     styles = getSampleStyleSheet()
     story = []
 
-    # Cover
-    story.append(Paragraph("ITSM Maturity Assessment", styles["Title"]))
+    # Cover — Pulse brand: lockup on top, cyan rule, navy title.
+    if PULSE_LOGO_PATH.exists():
+        # pulse-lockup-dual.png is 285×110 (≈2.59:1). 2.5in wide → 0.96in tall.
+        story.append(Image(str(PULSE_LOGO_PATH), width=2.5 * inch, height=0.96 * inch))
+        story.append(Spacer(1, 0.15 * inch))
+        # Thin cyan rule under the lockup (acts as the brand divider).
+        rule = Table([[""]], colWidths=[7.5 * inch], rowHeights=[0.04 * inch])
+        rule.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), PULSE_CYAN)]))
+        story.append(rule)
+        story.append(Spacer(1, 0.25 * inch))
+
+    pulse_title_style = ParagraphStyle(
+        "PulseTitle",
+        parent=styles["Title"],
+        textColor=PULSE_NAVY,
+        fontName="Helvetica-Bold",
+    )
+    story.append(Paragraph("ITSM Maturity Assessment", pulse_title_style))
+    story.append(Paragraph(
+        "<font color='#06B6D4'><b>QUEDERA · Pulse</b></font>",
+        styles["Normal"],
+    ))
     story.append(Spacer(1, 0.2 * inch))
     story.append(Paragraph(f"<b>Session:</b> {session_id}", styles["Normal"]))
     story.append(Paragraph(f"<b>Scope:</b> {sess['scope']}", styles["Normal"]))
@@ -304,8 +348,9 @@ def export_pdf(session_id: str):
 
         t = Table(data, colWidths=[2.8 * inch, 0.7 * inch, 0.7 * inch, 0.7 * inch, 0.6 * inch])
         t.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0a1628")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            # Pulse cyan header (was generic #0a1628 navy), navy text for contrast.
+            ("BACKGROUND", (0, 0), (-1, 0), PULSE_CYAN),
+            ("TEXTCOLOR", (0, 0), (-1, 0), PULSE_NAVY),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
             ("FONTSIZE", (0, 0), (-1, -1), 9),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
@@ -340,6 +385,13 @@ def export_pdf(session_id: str):
                 ))
     else:
         story.append(Paragraph("No results recorded for this session yet.", styles["Normal"]))
+
+    # Pulse brand footer line.
+    story.append(Spacer(1, 0.4 * inch))
+    story.append(Paragraph(
+        "<font color='#06B6D4'><b>QUEDERA · Pulse</b></font> — ITSM Maturity Assessment",
+        styles["Italic"],
+    ))
 
     doc.build(story)
     buffer.seek(0)
@@ -381,41 +433,60 @@ def export_xlsx(session_id: str):
     )
 
     wb = Workbook()
-    header_font = Font(bold=True, size=11)
-    title_font = Font(bold=True, size=16)
+    # Pulse brand styles: cyan header fills, navy text.
+    pulse_header_fill = PatternFill(
+        start_color=PULSE_CYAN_RGB,
+        end_color=PULSE_CYAN_RGB,
+        fill_type="solid",
+    )
+    pulse_header_font = Font(bold=True, size=11, color=PULSE_NAVY_RGB)
+    pulse_title_font = Font(bold=True, size=16, color=PULSE_NAVY_RGB)
+    pulse_label_font = Font(bold=True, size=11, color=PULSE_NAVY_RGB)
+    pulse_accent_font = Font(bold=True, size=11, color=PULSE_CYAN_RGB)
 
     # --- Summary sheet ---
     ws = wb.active
     ws.title = "Summary"
-    ws["A1"] = "ITSM Maturity Assessment"
-    ws["A1"].font = title_font
 
-    ws["A3"] = "Session ID"
-    ws["B3"] = session_id
-    ws["A4"] = "Scope"
-    ws["B4"] = sess["scope"]
+    # Pulse lockup top-right of title (D1). Lockup is 285×110; scale to 200×77.
+    if PULSE_LOGO_PATH.exists():
+        logo = XLImage(str(PULSE_LOGO_PATH))
+        logo.width = 200
+        logo.height = 77
+        ws.add_image(logo, "D1")
+
+    ws["A1"] = "ITSM Maturity Assessment"
+    ws["A1"].font = pulse_title_font
+    ws["A2"] = "QUEDERA · Pulse"
+    ws["A2"].font = Font(bold=True, size=10, color=PULSE_CYAN_RGB)
+
+    ws["A4"] = "Session ID"
+    ws["B4"] = session_id
+    ws["A5"] = "Scope"
+    ws["B5"] = sess["scope"]
     if sess["selected_disciplines"]:
         try:
             ids = json.loads(sess["selected_disciplines"])
-            ws["A5"] = "Selected Disciplines"
-            ws["B5"] = ", ".join(str(i) for i in ids)
+            ws["A6"] = "Selected Disciplines"
+            ws["B6"] = ", ".join(str(i) for i in ids)
         except (json.JSONDecodeError, TypeError):
             pass
-    ws["A6"] = "Created At"
-    ws["B6"] = sess["created_at"]
-    ws["A7"] = "Completed At"
-    ws["B7"] = sess["completed_at"] or ""
+    ws["A7"] = "Created At"
+    ws["B7"] = sess["created_at"]
+    ws["A8"] = "Completed At"
+    ws["B8"] = sess["completed_at"] or ""
 
     # Per-discipline summary table
-    ws["A9"] = "Discipline"
-    ws["B9"] = "Total Score"
-    ws["C9"] = "Max Score"
-    ws["D9"] = "Percentage"
-    ws["E9"] = "Level"
-    for col in ["A9", "B9", "C9", "D9", "E9"]:
-        ws[col].font = header_font
+    ws["A10"] = "Discipline"
+    ws["B10"] = "Total Score"
+    ws["C10"] = "Max Score"
+    ws["D10"] = "Percentage"
+    ws["E10"] = "Level"
+    for col in ["A10", "B10", "C10", "D10", "E10"]:
+        ws[col].font = pulse_header_font
+        ws[col].fill = pulse_header_fill
 
-    for i, r in enumerate(results, start=10):
+    for i, r in enumerate(results, start=11):
         pct = r["pct_cmmi"]
         level = _cmmi_level(pct)
         ws[f"A{i}"] = r["discipline_name"]
@@ -432,9 +503,9 @@ def export_xlsx(session_id: str):
             overall_pct = overall_total / overall_max
             overall_level = _cmmi_level(overall_pct)
             avg_label = "Overall Maturity" if sess["scope"] == "full" else "Scope Average"
-            summary_row = 10 + len(results) + 1
+            summary_row = 11 + len(results) + 1
             ws[f"A{summary_row}"] = avg_label
-            ws[f"A{summary_row}"].font = header_font
+            ws[f"A{summary_row}"].font = pulse_label_font
             ws[f"D{summary_row}"] = overall_pct
             ws[f"E{summary_row}"] = f"L{overall_level}"
 
@@ -454,17 +525,21 @@ def export_xlsx(session_id: str):
     for disc_name in sorted(assessed):
         ws = wb.create_sheet(title=_sheet_safe_name(disc_name))
         ws["A1"] = disc_name
-        ws["A1"].font = title_font
+        ws["A1"].font = pulse_title_font
 
-        ws["A3"] = "Question ID"
-        ws["B3"] = "Area"
-        ws["C3"] = "Question"
-        ws["D3"] = "Score"
-        for col in ["A3", "B3", "C3", "D3"]:
-            ws[col].font = header_font
+        ws["A2"] = "QUEDERA · Pulse"
+        ws["A2"].font = Font(bold=True, size=10, color=PULSE_CYAN_RGB)
+
+        ws["A4"] = "Question ID"
+        ws["B4"] = "Area"
+        ws["C4"] = "Question"
+        ws["D4"] = "Score"
+        for col in ["A4", "B4", "C4", "D4"]:
+            ws[col].font = pulse_header_font
+            ws[col].fill = pulse_header_fill
 
         qs = by_discipline.get(disc_name, [])
-        for i, q in enumerate(qs, start=4):
+        for i, q in enumerate(qs, start=5):
             ws[f"A{i}"] = q["question_id"]
             ws[f"B{i}"] = q["area_name"]
             ws[f"C{i}"] = q["question_text"]
