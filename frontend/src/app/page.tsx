@@ -1,7 +1,20 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { api, Discipline, SessionScope } from "@/lib/api";
+import {
+  api,
+  Discipline,
+  SessionScope,
+  SessionCreate,
+  ROLE_OPTIONS,
+  OTHER_ROLE_VALUE,
+} from "@/lib/api";
+
+// Pulse UX item 5 — localStorage keys for the respondent metadata so repeat
+// respondents only type once. Per-browser; never sent anywhere except the
+// session create payload.
+const LS_ROLE = "pulse:role";
+const LS_COMPANY = "pulse:company";
 
 export default function Home() {
   const router = useRouter();
@@ -12,6 +25,12 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Respondent metadata (Pulse UX item 5). Pre-filled from localStorage on
+  // mount so repeat respondents only type once. Both fields optional.
+  const [roleSelect, setRoleSelect] = useState<string>("");
+  const [otherRole, setOtherRole] = useState<string>("");
+  const [company, setCompany] = useState<string>("");
+
   useEffect(() => {
     api.getDisciplines()
       .then(setDisciplines)
@@ -20,6 +39,25 @@ export default function Home() {
         setError("Could not load disciplines. Is the backend running?");
       })
       .finally(() => setLoading(false));
+
+    // Pre-fill from localStorage. If the saved role is one of the canonical
+    // options, put it in the dropdown directly; otherwise treat it as a custom
+    // Other value and populate the Other text input.
+    try {
+      const savedRole = window.localStorage.getItem(LS_ROLE);
+      if (savedRole) {
+        if (ROLE_OPTIONS.includes(savedRole)) {
+          setRoleSelect(savedRole);
+        } else {
+          setRoleSelect(OTHER_ROLE_VALUE);
+          setOtherRole(savedRole);
+        }
+      }
+      const savedCompany = window.localStorage.getItem(LS_COMPANY);
+      if (savedCompany) setCompany(savedCompany);
+    } catch {
+      // localStorage unavailable — fall through with empty form.
+    }
   }, []);
 
   const toggleDiscipline = (id: number) => {
@@ -45,10 +83,31 @@ export default function Home() {
     setSubmitting(true);
     setError(null);
     try {
-      const payload = scope === "full"
-        ? { scope: "full" as SessionScope }
-        : { scope, selected_disciplines: Array.from(selected).sort((a, b) => a - b) };
+      // Compute final respondent_role: dropdown value OR Other text input
+      // (whichever is relevant). Trim, then null if empty.
+      const finalRole = roleSelect === OTHER_ROLE_VALUE
+        ? otherRole.trim()
+        : roleSelect.trim();
+      const finalCompany = company.trim();
+
+      const payload: SessionCreate = {
+        scope: scope === "full" ? "full" : scope,
+        selected_disciplines:
+          scope === "full" ? undefined : Array.from(selected).sort((a, b) => a - b),
+        respondent_role: finalRole || null,
+        respondent_company: finalCompany || null,
+      };
       const session = await api.createSession(payload);
+
+      // Persist for next time. Only store non-empty values so a one-off
+      // clear doesn't get overwritten by an empty submit.
+      try {
+        if (finalRole) window.localStorage.setItem(LS_ROLE, finalRole);
+        if (finalCompany) window.localStorage.setItem(LS_COMPANY, finalCompany);
+      } catch {
+        // ignore
+      }
+
       router.push(`/assess/${session.session_id}`);
     } catch (e: any) {
       setError(e.message || "Failed to start assessment");
@@ -184,6 +243,70 @@ export default function Home() {
                 {error}
               </div>
             )}
+
+            {/* Respondent metadata (Pulse UX item 5) — optional, pre-filled
+                from localStorage per browser. Both fields skip cleanly if empty. */}
+            <div className="rounded-xl border border-quedera-navy/10 bg-quedera-surface p-6 mb-4 shadow-sm text-left">
+              <h3 className="text-sm uppercase tracking-widest text-quedera-navy/60 mb-3">
+                About you <span className="text-quedera-navy/40 normal-case">(optional)</span>
+              </h3>
+
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="respondent-role" className="block text-xs text-quedera-navy/70 mb-1">
+                    Your role
+                  </label>
+                  <select
+                    id="respondent-role"
+                    value={roleSelect}
+                    onChange={(e) => setRoleSelect(e.target.value)}
+                    className="w-full appearance-none border-2 border-quedera-navy/10 bg-quedera-surface px-3 py-2 rounded-lg text-sm text-quedera-navy focus:border-quedera-cyan focus:outline-none transition"
+                  >
+                    <option value="">— select —</option>
+                    {ROLE_OPTIONS.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                    <option value={OTHER_ROLE_VALUE}>Other (please specify)</option>
+                  </select>
+                </div>
+
+                {roleSelect === OTHER_ROLE_VALUE && (
+                  <div>
+                    <label htmlFor="respondent-role-other" className="block text-xs text-quedera-navy/70 mb-1">
+                      Specify your role
+                    </label>
+                    <input
+                      id="respondent-role-other"
+                      type="text"
+                      value={otherRole}
+                      onChange={(e) => setOtherRole(e.target.value)}
+                      placeholder="e.g., Head of Platform Engineering"
+                      maxLength={120}
+                      className="w-full border-2 border-quedera-navy/10 bg-quedera-surface px-3 py-2 rounded-lg text-sm text-quedera-navy focus:border-quedera-cyan focus:outline-none transition"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="respondent-company" className="block text-xs text-quedera-navy/70 mb-1">
+                    Company
+                  </label>
+                  <input
+                    id="respondent-company"
+                    type="text"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    placeholder="e.g., Acme Corp"
+                    maxLength={120}
+                    className="w-full border-2 border-quedera-navy/10 bg-quedera-surface px-3 py-2 rounded-lg text-sm text-quedera-navy focus:border-quedera-cyan focus:outline-none transition"
+                  />
+                </div>
+              </div>
+
+              <p className="text-xs text-quedera-navy/50 italic mt-3">
+                Used only for your assessment output — not shared.
+              </p>
+            </div>
 
             <button
               onClick={handleStart}

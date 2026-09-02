@@ -40,6 +40,8 @@ export interface Session {
   session_id: string;
   scope: SessionScope;
   selected_disciplines: number[] | null;
+  respondent_role: string | null;
+  respondent_company: string | null;
   created_at: string;
   completed_at: string | null;
 }
@@ -47,7 +49,38 @@ export interface Session {
 export interface SessionCreate {
   scope: SessionScope;
   selected_disciplines?: number[] | null;
+  respondent_role?: string | null;
+  respondent_company?: string | null;
 }
+
+// Pulse UX item 5 — the 20-role dropdown options shown on the start page.
+// Mirrored on backend via the validator in SessionCreate (Other is rendered
+// as a separate text input on the frontend; combined into respondent_role
+// before POST). Kept in sync by hand — small enough not to warrant a config
+// service.
+export const ROLE_OPTIONS: string[] = [
+  "Service Desk Analyst",
+  "Service Desk Manager",
+  "Incident Manager",
+  "Problem Manager",
+  "Change Manager",
+  "Release & Deployment Manager",
+  "Service Level Manager",
+  "Availability Manager",
+  "Capacity Manager",
+  "IT Service Continuity Manager",
+  "Information Security Manager",
+  "IT Financial Manager",
+  "Supplier Manager",
+  "Knowledge / Catalogue Manager",
+  "Strategy / Portfolio Manager",
+  "IT Director / CIO",
+  "Operations Manager",
+  "DevOps / SRE Lead",
+  "IT Architect",
+  "Consultant / Assessor",
+];
+export const OTHER_ROLE_VALUE = "__other__";
 
 export const api = {
   async getDisciplines(): Promise<Discipline[]> {

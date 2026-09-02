@@ -153,6 +153,24 @@ class SessionCreate(BaseModel):
     # Optional because scope='full' has no discipline list. For scope='single'
     # we require exactly 1; for 'multi' we require 2..28.
     selected_disciplines: Optional[list[int]] = None
+    # Pulse UX item 5: optional respondent metadata. Both fields are stored
+    # as-is (after trim + length cap), then rendered into the PDF/XLSX outputs.
+    respondent_role: Optional[str] = None
+    respondent_company: Optional[str] = None
+
+    @validator("respondent_role")
+    def _trim_role(cls, v):
+        if v is None:
+            return None
+        v = v.strip()
+        return v[:120] if v else None
+
+    @validator("respondent_company")
+    def _trim_company(cls, v):
+        if v is None:
+            return None
+        v = v.strip()
+        return v[:120] if v else None
 
     @validator("selected_disciplines")
     def _validate_disciplines(cls, v, values):
@@ -188,18 +206,34 @@ class SessionOut(BaseModel):
     session_id: str
     scope: SessionScope
     selected_disciplines: Optional[list[int]]
+    respondent_role: Optional[str] = None
+    respondent_company: Optional[str] = None
     created_at: str
     completed_at: Optional[str]
+
+
+# Shared SELECT column list for the sessions table — keeps create/read/complete
+# queries consistent so the row keys always include the respondent fields.
+_SESSION_COLS = (
+    "session_id, scope, selected_disciplines, "
+    "respondent_role, respondent_company, "
+    "created_at, completed_at"
+)
 
 
 def _row_to_session(row) -> SessionOut:
     """Convert a sqlite3.Row sessions row to a SessionOut."""
     raw = row["selected_disciplines"]
     selected = json.loads(raw) if raw else None
+    keys = row.keys()
     return SessionOut(
         session_id=row["session_id"],
         scope=row["scope"],
         selected_disciplines=selected,
+        # Defensive: the columns exist post-migration-015; if someone runs the
+        # old DB without the migration, fall back to None instead of KeyError.
+        respondent_role=row["respondent_role"] if "respondent_role" in keys else None,
+        respondent_company=row["respondent_company"] if "respondent_company" in keys else None,
         created_at=row["created_at"],
         completed_at=row["completed_at"],
     )
@@ -212,14 +246,16 @@ def create_session(payload: SessionCreate):
     selected_json = json.dumps(payload.selected_disciplines) if payload.selected_disciplines else None
 
     db.execute(
-        """INSERT INTO sessions (session_id, scope, selected_disciplines)
-           VALUES (?, ?, ?)""",
-        (session_id, payload.scope, selected_json),
+        f"""INSERT INTO sessions
+            (session_id, scope, selected_disciplines,
+             respondent_role, respondent_company)
+            VALUES (?, ?, ?, ?, ?)""",
+        (session_id, payload.scope, selected_json,
+         payload.respondent_role, payload.respondent_company),
     )
 
     row = db.query_one(
-        "SELECT session_id, scope, selected_disciplines, created_at, completed_at "
-        "FROM sessions WHERE session_id = ?",
+        f"SELECT {_SESSION_COLS} FROM sessions WHERE session_id = ?",
         (session_id,),
     )
     return _row_to_session(row)
@@ -229,8 +265,7 @@ def create_session(payload: SessionCreate):
 def get_session(session_id: str):
     """Read a session's scope + timestamps."""
     row = db.query_one(
-        "SELECT session_id, scope, selected_disciplines, created_at, completed_at "
-        "FROM sessions WHERE session_id = ?",
+        f"SELECT {_SESSION_COLS} FROM sessions WHERE session_id = ?",
         (session_id,),
     )
     if row is None:
@@ -253,8 +288,7 @@ def complete_session(session_id: str):
         (session_id,),
     )
     row = db.query_one(
-        "SELECT session_id, scope, selected_disciplines, created_at, completed_at "
-        "FROM sessions WHERE session_id = ?",
+        f"SELECT {_SESSION_COLS} FROM sessions WHERE session_id = ?",
         (session_id,),
     )
     return _row_to_session(row)
@@ -266,8 +300,7 @@ def complete_session(session_id: str):
 def export_pdf(session_id: str):
     """Server-side branded PDF: results-only summary, per-discipline level."""
     sess = db.query_one(
-        "SELECT session_id, scope, selected_disciplines, created_at, completed_at "
-        "FROM sessions WHERE session_id = ?",
+        f"SELECT {_SESSION_COLS} FROM sessions WHERE session_id = ?",
         (session_id,),
     )
     if sess is None:
@@ -323,6 +356,20 @@ def export_pdf(session_id: str):
     story.append(Paragraph(f"<b>Created:</b> {sess['created_at']}", styles["Normal"]))
     if sess["completed_at"]:
         story.append(Paragraph(f"<b>Completed:</b> {sess['completed_at']}", styles["Normal"]))
+
+    # Respondent metadata (Pulse UX item 5). Both fields optional — only render
+    # the line if at least one is set.
+    role = sess["respondent_role"] if "respondent_role" in sess.keys() else None
+    company = sess["respondent_company"] if "respondent_company" in sess.keys() else None
+    if role and company:
+        story.append(Paragraph(
+            f"<b>Respondent:</b> {role} at {company}", styles["Normal"],
+        ))
+    elif role:
+        story.append(Paragraph(f"<b>Respondent:</b> {role}", styles["Normal"]))
+    elif company:
+        story.append(Paragraph(f"<b>Respondent:</b> {company}", styles["Normal"]))
+
     story.append(Spacer(1, 0.3 * inch))
 
     # Per-discipline table
@@ -407,8 +454,7 @@ def export_pdf(session_id: str):
 def export_xlsx(session_id: str):
     """Server-side XLSX: Summary sheet + one sheet per assessed discipline."""
     sess = db.query_one(
-        "SELECT session_id, scope, selected_disciplines, created_at, completed_at "
-        "FROM sessions WHERE session_id = ?",
+        f"SELECT {_SESSION_COLS} FROM sessions WHERE session_id = ?",
         (session_id,),
     )
     if sess is None:
@@ -476,17 +522,25 @@ def export_xlsx(session_id: str):
     ws["A8"] = "Completed At"
     ws["B8"] = sess["completed_at"] or ""
 
-    # Per-discipline summary table
-    ws["A10"] = "Discipline"
-    ws["B10"] = "Total Score"
-    ws["C10"] = "Max Score"
-    ws["D10"] = "Percentage"
-    ws["E10"] = "Level"
-    for col in ["A10", "B10", "C10", "D10", "E10"]:
+    # Respondent metadata (Pulse UX item 5). Reserved rows A9/A10 so the table
+    # below keeps its anchor at A12. Blank if unset — no conditional shifting
+    # of the per-discipline block.
+    ws["A9"] = "Respondent Role"
+    ws["B9"] = sess["respondent_role"] if "respondent_role" in sess.keys() and sess["respondent_role"] else ""
+    ws["A10"] = "Respondent Company"
+    ws["B10"] = sess["respondent_company"] if "respondent_company" in sess.keys() and sess["respondent_company"] else ""
+
+    # Per-discipline summary table (anchored at A12, with row 11 as a gap).
+    ws["A12"] = "Discipline"
+    ws["B12"] = "Total Score"
+    ws["C12"] = "Max Score"
+    ws["D12"] = "Percentage"
+    ws["E12"] = "Level"
+    for col in ["A12", "B12", "C12", "D12", "E12"]:
         ws[col].font = pulse_header_font
         ws[col].fill = pulse_header_fill
 
-    for i, r in enumerate(results, start=11):
+    for i, r in enumerate(results, start=13):
         pct = r["pct_cmmi"]
         level = _cmmi_level(pct)
         ws[f"A{i}"] = r["discipline_name"]
@@ -503,7 +557,7 @@ def export_xlsx(session_id: str):
             overall_pct = overall_total / overall_max
             overall_level = _cmmi_level(overall_pct)
             avg_label = "Overall Maturity" if sess["scope"] == "full" else "Scope Average"
-            summary_row = 11 + len(results) + 1
+            summary_row = 13 + len(results) + 1
             ws[f"A{summary_row}"] = avg_label
             ws[f"A{summary_row}"].font = pulse_label_font
             ws[f"D{summary_row}"] = overall_pct
