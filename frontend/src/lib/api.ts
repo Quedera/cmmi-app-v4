@@ -1,5 +1,8 @@
-// Use relative URLs — Next.js rewrites handle proxying to the backend
-const API_BASE = "";
+// Backend base URL — baked at build time via NEXT_PUBLIC_API_URL (Dockerfile
+// ARG/ENV). The Pulse frontend lives at a different origin from the backend
+// in Azure, so direct calls + CORS (allow_origins=["*"] on the FastAPI side)
+// is the right shape for prod. Dev (local docker-compose) overrides at run.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export interface Discipline {
   id: number;
@@ -70,6 +73,7 @@ export const ROLE_OPTIONS: string[] = [
   "Capacity Manager",
   "IT Service Continuity Manager",
   "Information Security Manager",
+  "Service Asset & Configuration Manager",
   "IT Financial Manager",
   "Supplier Manager",
   "Knowledge / Catalogue Manager",
