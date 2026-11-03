@@ -60,3 +60,8 @@ __pycache__/
 # Project-specific
 cmmi_v4.sqlite
 cmmi_v4.sqlite.*
+
+# Seed DB for the backend Docker image. backend/Dockerfile bakes
+# backend/cmmi_v4.sqlite into /app/seed, so without it in the repo the
+# image cannot be rebuilt from a fresh clone.
+!backend/cmmi_v4.sqlite

@@ -1,0 +1,13 @@
+# Build context hygiene — keep the context small and the image clean.
+# NOTE: do NOT exclude *.sqlite — backend/cmmi_v4.sqlite is the seed database
+# the backend image bakes in.
+**/node_modules
+**/.next
+**/out
+**/dist
+**/__pycache__
+**/*.pyc
+**/*.pyo
+backend/.venv
+logs/
+*.log

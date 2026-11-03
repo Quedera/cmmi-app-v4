@@ -20,12 +20,20 @@ COPY frontend/ ./
 # so ../../ from /app goes to /, then /branding/...). Sibling of /app.
 COPY branding/ /branding/
 
-# Build-time backend URL — baked into the static bundle via Next.js rewrites.
-# For Azure: pass --build-arg NEXT_PUBLIC_API_URL=http://<aci-fqdn>:8000
+# Build-time backend URL — baked into the static bundle via Next.js inlining.
+# For Azure: pass --build-arg NEXT_PUBLIC_API_URL=https://<backend-fqdn>
 # For local docker-compose: defaults to http://localhost:8000
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
+# Verify the env var is actually set before next build reads it
+RUN echo ">>> Building with NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}"
+
+# Cap the Node heap. This host has ~8G available and the Next.js build was
+# being OOM-killed at the default heap size (swap exhausted mid-build, no
+# error in the log). 2G is plenty for this app and leaves room for the
+# rest of the box.
+ENV NODE_OPTIONS=--max-old-space-size=2048
 RUN npm run build
 
 # --- runtime stage ---
@@ -35,6 +43,11 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=3000
+
+# Re-declare the ARG in the runtime stage: build args do NOT cross stage
+# boundaries. Without this the runtime env is empty and next.config.js falls
+# back to http://localhost:8003, so /api/* rewrites die on Azure.
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 # Copy only what we need to run

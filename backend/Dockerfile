@@ -13,6 +13,12 @@ RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 # Copy backend code
 COPY backend/ /app/backend/
 
+# The export code (routers/sessions.py) resolves the brand mark relative to
+# __file__ as <repo>/frontend/public/assets/pulse-shield.png, i.e. /app/frontend
+# inside the container. Copy just that asset in so PDF/XLSX exports carry the
+# Pulse shield instead of silently rendering without a logo.
+COPY frontend/public/assets/pulse-shield.png /app/frontend/public/assets/pulse-shield.png
+
 # Bake the seed database (the rebranded / ITSM-scrubbed Pulse dataset) into
 # the image so a fresh container can serve traffic immediately. On first start,
 # the entrypoint copies it into /app/data/cmmi_v4.sqlite — the Azure Files
