@@ -51,16 +51,19 @@ from backend.db import database as db
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 # --- Pulse brand assets ----------------------------------------------------
-# Resolve the lockup path relative to this file so it works whether the
+# Resolve the shield path relative to this file so it works whether the
 # backend is launched from /workspace/cmmi-app-v4 (systemd, local) or from
 # inside a Docker container with a different cwd. Override via env var if the
-# layout ever changes (PULSE_LOGO_PATH=/abs/path/pulse-lockup-dual.png).
+# layout ever changes (PULSE_LOGO_PATH=/abs/path/pulse-shield.png).
+# Note: pulse-shield.png is the single shield mark cropped out of the
+# pulse-icon.png header asset — the older pulse-lockup-dual.png contained two
+# shields side-by-side and looked like a duplicate logo on the export cover.
 _DEFAULT_LOGO = (
     Path(__file__).resolve().parent.parent.parent
     / "frontend"
     / "public"
     / "assets"
-    / "pulse-lockup-dual.png"
+    / "pulse-shield.png"
 )
 PULSE_LOGO_PATH = Path(os.environ.get("PULSE_LOGO_PATH", str(_DEFAULT_LOGO)))
 
@@ -319,10 +322,10 @@ def export_pdf(session_id: str):
     styles = getSampleStyleSheet()
     story = []
 
-    # Cover — Pulse brand: lockup on top, cyan rule, navy title.
+    # Cover — Pulse brand: single shield mark on top, cyan rule, navy title.
     if PULSE_LOGO_PATH.exists():
-        # pulse-lockup-dual.png is 285×110 (≈2.59:1). 2.5in wide → 0.96in tall.
-        story.append(Image(str(PULSE_LOGO_PATH), width=2.5 * inch, height=0.96 * inch))
+        # pulse-shield.png is 770×515 (≈1.50:1). 1.2in wide → 0.80in tall.
+        story.append(Image(str(PULSE_LOGO_PATH), width=1.2 * inch, height=0.80 * inch))
         story.append(Spacer(1, 0.15 * inch))
         # Thin cyan rule under the lockup (acts as the brand divider).
         rule = Table([[""]], colWidths=[7.5 * inch], rowHeights=[0.04 * inch])
@@ -494,11 +497,12 @@ def export_xlsx(session_id: str):
     ws = wb.active
     ws.title = "Summary"
 
-    # Pulse lockup top-right of title (D1). Lockup is 285×110; scale to 200×77.
+    # Pulse shield top-right of title (D1). Shield is 770×515; scale to 90×60
+    # so the wordmark on the cover (A1/A2) keeps the visual weight.
     if PULSE_LOGO_PATH.exists():
         logo = XLImage(str(PULSE_LOGO_PATH))
-        logo.width = 200
-        logo.height = 77
+        logo.width = 90
+        logo.height = 60
         ws.add_image(logo, "D1")
 
     ws["A1"] = "ITSM Maturity Assessment"
@@ -546,7 +550,12 @@ def export_xlsx(session_id: str):
         ws[f"A{i}"] = r["discipline_name"]
         ws[f"B{i}"] = r["total_score"]
         ws[f"C{i}"] = r["max_score"]
-        ws[f"D{i}"] = pct
+        # pct is a 0..1 float; render as a percentage in Excel rather than as
+        # a raw decimal (e.g. 0.8 → "80%"). Value stays 0..1 so spreadsheet
+        # formulas can still do math against it.
+        cell_pct = ws[f"D{i}"]
+        cell_pct.value = pct
+        cell_pct.number_format = "0%"
         ws[f"E{i}"] = f"L{level}"
 
     # Overall / scope average at the bottom
@@ -560,7 +569,10 @@ def export_xlsx(session_id: str):
             summary_row = 13 + len(results) + 1
             ws[f"A{summary_row}"] = avg_label
             ws[f"A{summary_row}"].font = pulse_label_font
-            ws[f"D{summary_row}"] = overall_pct
+            # Same percent-format treatment as the per-discipline rows above.
+            cell_pct = ws[f"D{summary_row}"]
+            cell_pct.value = overall_pct
+            cell_pct.number_format = "0%"
             ws[f"E{summary_row}"] = f"L{overall_level}"
 
     ws.column_dimensions["A"].width = 28
