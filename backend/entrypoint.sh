@@ -18,7 +18,7 @@ fi
 # column, mangled discipline names). Apply pending migrations on every
 # start-up; both scripts are idempotent (name/PRAGMA guarded) so re-runs
 # are no-ops.
-for m in 014_clean_discipline_names 015_add_respondent_metadata; do
+for m in 014_clean_discipline_names 015_add_respondent_metadata 016_DEF-019_remove_duplicate_no; do
   script="/app/backend/migrations/$m.py"
   if [ -f "$script" ]; then
     echo "[entrypoint] Applying $m"

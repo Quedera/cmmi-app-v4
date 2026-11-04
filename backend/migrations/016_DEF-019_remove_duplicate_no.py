@@ -13,7 +13,11 @@ import sys
 from pathlib import Path
 
 DB_DEFAULT = Path(__file__).resolve().parent.parent.parent / "cmmi_v4.sqlite"
-DB_PATH = Path(os.environ.get("CMMI_DB_PATH", DB_DEFAULT))
+# Sibling migrations (014, 015) take the DB path as argv[1] — the entrypoint
+# invokes them that way. Accept argv[1] first, then CMMI_DB_PATH, then the
+# default, so 016 behaves the same however it is called.
+_ARGV_DB = sys.argv[1] if len(sys.argv) > 1 else None
+DB_PATH = Path(_ARGV_DB or os.environ.get("CMMI_DB_PATH") or DB_DEFAULT)
 
 FIXES = {
     (125, 1): "No evaluation takes place. It is sometimes considered.",
